@@ -1,0 +1,44 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Video Streaming with Object Detection</title>
+</head>
+<body>
+    <h1>Video Streaming with Object Detection</h1>
+    <img id="video_stream" src="" alt="Video Stream" width="640" height="480">
+    <script>
+        // Функция для отправки кадра на сервер и обновления изображения
+        function processFrame() {
+            var video = document.getElementById('video_stream');
+            var canvas = document.createElement('canvas');
+            canvas.width = video.width;
+            canvas.height = video.height;
+            var context = canvas.getContext('2d');
+            context.drawImage(video, 0, 0, canvas.width, canvas.height);
+            var imageData = canvas.toDataURL('image/jpeg');
+
+            // Отправка данных на сервер
+            fetch('/process_frame', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({ image_data: imageData }),
+            })
+            .then(response => response.json())
+            .then(data => {
+                // Обновление изображения с результатом анализа
+                video.src = 'data:image/jpeg;base64,' + data.result;
+            })
+            .catch(error => {
+                console.error('Ошибка:', error);
+            });
+        }
+
+        // Запуск функции processFrame каждую секунду
+        setInterval(processFrame, 1000);
+    </script>
+</body>
+</html>

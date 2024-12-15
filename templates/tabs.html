@@ -1,0 +1,226 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Домашняя страница</title>
+    <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/4.0.0/css/bootstrap.min.css">
+    <style>
+        body {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+        header {
+            width: 100%;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 10px 20px;
+            background-color: #f2f2f2;
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+        }
+        .header-left, .header-right {
+            display: flex;
+            align-items: center;
+        }
+        .header-left .tablink {
+            margin-right: 20px;
+        }
+        .header-right .tablink {
+            margin-left: 20px;
+        }
+        .tablink {
+            background-color: #f2f2f2;
+            border: none;
+            color: black;
+            padding: 15px 30px;
+            font-size: 18px;
+            cursor: pointer;
+            border-radius: 5px;
+            transition: background-color 0.3s;
+        }
+        .tablink:hover {
+            background-color: #ddd;
+        }
+        .active {
+            background-color: #ccc;
+        }
+        .tabcontent {
+            display: none;
+            width: 80%;
+            margin-top: 20px;
+        }
+        .drag-area {
+            border: 2px dashed #ccc;
+            border-radius: 5px;
+            padding: 20px;
+            text-align: center;
+            cursor: pointer;
+            transition: border-color 0.3s;
+        }
+        .drag-area.dragover {
+            border-color: #000;
+        }
+        form {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 10px;
+        }
+        form input[type="file"] {
+            margin-bottom: 10px;
+        }
+        form select, form button {
+            margin: 5px;
+        }
+    </style>
+</head>
+<body>
+    <header>
+        <div class="header-left">
+            {% if 'username' in session %}
+                <button class="tablink active" onclick="openTab('analyse_video')">Анализ видео</button>
+                <button class="tablink" onclick="openTab('live_analysis')">Анализ в прямом эфире</button>
+                <button class="tablink" onclick="openTab('history')">История</button>
+            {% endif %}
+        </div>
+        <div class="header-right">
+            {% if 'username' in session %}
+                <p>Привет, {{ session['username'] }}!</p>
+                <a href="{{ url_for('logout') }}"><button class="tablink">Выйти</button></a>
+            {% else %}
+                <a href="{{ url_for('login') }}"><button class="tablink">Вход</button></a>
+                <a href="{{ url_for('register') }}"><button class="tablink">Регистрация</button></a>
+            {% endif %}
+        </div>
+    </header>
+
+    {% if 'username' in session %}
+        <!-- Содержимое вкладок только для авторизованных пользователей -->
+        <div id="analyse_video" class="tabcontent" style="display: block;">
+            <h2>Анализ видео</h2>
+            <div class="drag-area" id="drag-area">
+                Перетащите сюда видео файл или нажмите для выбора
+            </div>
+            <form id="upload-form" action="{{ url_for('upload_video') }}" method="post" enctype="multipart/form-data" style="display: none;">
+                <input type="file" id="file-input" name="video_file" accept="video/*" required>
+                <label for="speed">Скорость воспроизведения:</label>
+                <select id="speed" name="speed">
+                    <option value="1">1x</option>
+                    <option value="2">1.25x</option>
+                    <option value="3">1.5x</option>
+                </select>
+                <label for="coordinates">Искать координаты:</label>
+                <select id="coordinates" name="coordinates">
+                    <option value="yes">Да</option>
+                    <option value="no">Нет</option>
+                </select>
+                <label for="fire_type">Определять тип пожара:</label>
+                <select id="fire_type" name="fire_type">
+                    <option value="yes">Да</option>
+                    <option value="no">Нет</option>
+                </select>
+                <button type="submit">Загрузить видео</button>
+                {% if 'output_video_path' in session %}
+                    <a href="{{ url_for('show_processed_video') }}"><button class="btn btn-primary">Посмотреть результаты анализа</button></a>
+                {% endif %}
+            </form>
+        </div>
+
+        <div id="live_analysis" class="tabcontent">
+            <h2>Анализ в прямом эфире</h2>
+            <form action="{{ url_for('live_analysis') }}" method="post">
+                <label for="video_source">Выбрать источник видео:</label>
+                <select id="video_source" name="video_source">
+                    <!-- Динамическое заполнение опций из JavaScript -->
+                </select>
+                <label for="coordinates">Искать координаты:</label>
+                <select id="coordinates" name="coordinates">
+                    <option value="yes">Да</option>
+                    <option value="no">Нет</option>
+                </select>
+                <label for="fire_type">Определять тип пожара:</label>
+                <select id="fire_type" name="fire_type">
+                    <option value="yes">Да</option>
+                    <option value="no">Нет</option>
+                </select>
+                <button type="submit">Запустить анализ</button>
+            </form>
+            <video id="live_video" style="display: none;"></video>
+            <canvas id="live_canvas" style="display: none;"></canvas>
+        </div>
+
+        <div id="history" class="tabcontent">
+            <h2>История</h2>
+            <a href="{{ url_for('history') }}"><button class="tablink">Показать всю историю</button></a>
+            <a href="{{ url_for('latest_history') }}"><button class="tablink">Показать последнюю историю</button></a>
+        </div>
+    {% endif %}
+
+    <script>
+        function openTab(tabName) {
+            var i, tabcontent, tablinks;
+            tabcontent = document.getElementsByClassName("tabcontent");
+            for (i = 0; i < tabcontent.length; i++) {
+                tabcontent[i].style.display = "none";
+            }
+            document.getElementById(tabName).style.display = "block";
+
+            tablinks = document.getElementsByClassName("tablink");
+            for (i = 0; i < tablinks.length; i++) {
+                tablinks[i].classList.remove("active");
+            }
+
+            event.currentTarget.classList.add("active");
+        }
+
+        document.addEventListener("DOMContentLoaded", function() {
+            document.getElementById("analyse_video").style.display = "block";
+
+            fetch("{{ url_for('get_video_sources') }}")
+                .then(response => response.json())
+                .then(data => {
+                    var select = document.getElementById("video_source");
+                    data.forEach(source => {
+                        var option = document.createElement("option");
+                        option.value = source;
+                        option.text = "Source " + source;
+                        select.add(option);
+                    });
+                })
+                .catch(error => console.error("Error fetching video sources:", error));
+
+            const dragArea = document.getElementById('drag-area');
+            const fileInput = document.getElementById('file-input');
+            const uploadForm = document.getElementById('upload-form');
+
+            dragArea.addEventListener('click', () => fileInput.click());
+
+            fileInput.addEventListener('change', (event) => {
+                uploadForm.style.display = 'block';
+            });
+
+            dragArea.addEventListener('dragover', (event) => {
+                event.preventDefault();
+                dragArea.classList.add('dragover');
+            });
+
+            dragArea.addEventListener('dragleave', () => {
+                dragArea.classList.remove('dragover');
+            });
+
+            dragArea.addEventListener('drop', (event) => {
+                event.preventDefault();
+                dragArea.classList.remove('dragover');
+
+                const files = event.dataTransfer.files;
+                if (files.length > 0) {
+                    fileInput.files = files;
+                    uploadForm.style.display = 'block';
+                }
+            });
+        });
+    </script>
+</body>
+</html>
